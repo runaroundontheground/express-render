@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>socket.io stuff</title>
+  </head>
+  <body>
+    <div id="test">test</div>
+    <div id="test2">test2</div>
+    <div id="playerBox"></div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      const socket = io();
+
+      const test = document.getElementById("test");
+      const test2 = document.getElementById("test2");
+      const playerBox = document.getElementById("playerBox");
+
+      let players = {};
+      const myPlayer = {
+        id: "client",
+        x: 0,
+        y: 0,
+        color: "orange",
+      };
+
+      function createPlayer(data) {
+        const player = {
+          id: data.id,
+          x: data.x,
+          y: data.y,
+          color: Math.random() > 0.5 ? "red" : "blue",
+        };
+        players[data.id] = player;
+      }
+      function showAPlayer(data) {
+        const playerElement =
+          document.getElementById(data.id) || document.createElement("div");
+
+        playerElement.style.width = "50px";
+        playerElement.style.height = "50px";
+        playerElement.style.backgroundColor = data.color;
+        playerElement.style.transform = `translate(${data.x}px, ${data.y}px)`;
+        playerElement.style.position = "absolute";
+        if (playerElement.id !== data.id) {
+          playerElement.id = data.id;
+          playerBox.appendChild(playerElement);
+        }
+      }
+
+      test.addEventListener("click", (ev) => {
+        socket.emit("message", "test");
+      });
+
+      const keysPressed = {};
+      window.addEventListener("keydown", (ev) => {
+        keysPressed[ev.key] = true;
+      });
+      window.addEventListener("keyup", (ev) => {
+        keysPressed[ev.key] = false;
+      });
+
+      socket.on("players", (data) => {
+        for (const thing in data) {
+          const player = data[thing];
+          if (player.id !== socket.id) {
+            showAPlayer(player);
+          }
+        }
+      });
+
+      socket.on("message", (message) => {
+        console.log("from server: ", message);
+      });
+
+      socket.on("player left", (playerId) => {
+        console.log("delete player: ", playerId);
+        delete players[playerId];
+        const element = document.getElementById(playerId);
+        playerBox.removeChild(element);
+      });
+
+      const localGame = function () {
+        const prevX = myPlayer.x;
+        const prevY = myPlayer.y;
+        const speed = 5;
+
+        if (keysPressed["a"]) {
+          myPlayer.x -= speed;
+        }
+        if (keysPressed["d"]) {
+          myPlayer.x += speed;
+        }
+        if (keysPressed["w"]) {
+          myPlayer.y -= speed;
+        }
+        if (keysPressed["s"]) {
+          myPlayer.y += speed;
+        }
+
+        if (prevX !== myPlayer.x || prevY !== myPlayer.y) {
+          socket.emit("updatePos", [myPlayer.x, myPlayer.y]);
+        }
+        showAPlayer(myPlayer);
+
+        requestAnimationFrame(localGame);
+      };
+      // inital send to make appear on other players probably
+      socket.emit("updatePos", [myPlayer.x, myPlayer.y]);
+      localGame();
+    </script>
+  </body>
+</html>
